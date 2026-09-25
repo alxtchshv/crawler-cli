@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/url"
 	"strings"
+	"sync"
 )
 
 type Fetcher interface {
@@ -30,6 +31,13 @@ type Crawler struct {
 	fetcher  Fetcher
 	maxDepth int
 	logger   *log.Logger
+	workers  int
+}
+
+type result struct {
+	job  job
+	page parse.Page
+	err  error
 }
 
 func NewCrawler(f Fetcher, maxDepth int, logger *log.Logger) *Crawler {
@@ -42,6 +50,7 @@ func NewCrawler(f Fetcher, maxDepth int, logger *log.Logger) *Crawler {
 		fetcher:  f,
 		maxDepth: maxDepth,
 		logger:   logger,
+		workers:  10,
 	}
 
 }
@@ -63,50 +72,90 @@ func (c *Crawler) Crawl(ctx context.Context, starts []*url.URL) []*Node {
 		queue = append(queue, job{url: u, depth: 0, parent: nil, site: siteLink(u)})
 	}
 
-	for len(queue) > 0 {
+	jobs := make(chan job)
+	results := make(chan result)
+	var wg sync.WaitGroup
 
-		j := queue[0]
-		queue = queue[1:]
+	for i := 0; i < c.workers; i++ {
+		wg.Add(1)
+		go c.worker(ctx, jobs, results, &wg)
+	}
 
-		page, err := c.fetcher.Fetch(ctx, j.url)
-		if err != nil {
-			c.logger.Printf("fetch %s: %v", j.url, err)
-			continue
+	pending := 0
+	for len(queue) > 0 || pending > 0 {
+
+		var sendCh chan job
+		var next job
+		if len(queue) > 0 {
+			sendCh = jobs
+			next = queue[0]
 		}
 
-		node := &Node{
-			Resource: j.url.String(),
-			Title:    page.Title,
-			Links:    make([]*Node, 0),
-		}
+		select {
 
-		if j.parent == nil {
-			roots = append(roots, node)
-		} else {
-			j.parent.Links = append(j.parent.Links, node)
-		}
+		case sendCh <- next:
+			queue = queue[1:]
+			pending++
 
-		if j.depth >= c.maxDepth {
-			continue
-		}
+		case r := <-results:
 
-		for _, link := range page.Links {
+			pending--
+			j := r.job
 
-			if siteLink(link) != j.site {
+			if r.err != nil {
+				c.logger.Printf("fetch %s: %v", j.url, r.err)
 				continue
 			}
 
-			key := visitedLink(link)
-			if _, ok := visited[key]; ok {
+			node := &Node{
+				Resource: j.url.String(),
+				Title:    r.page.Title,
+				Links:    make([]*Node, 0),
+			}
+
+			if j.parent == nil {
+				roots = append(roots, node)
+			} else {
+				j.parent.Links = append(j.parent.Links, node)
+			}
+
+			if j.depth >= c.maxDepth {
 				continue
 			}
 
-			visited[key] = struct{}{}
-			queue = append(queue, job{url: link, depth: j.depth + 1, parent: node, site: j.site})
+			for _, link := range r.page.Links {
+
+				if siteLink(link) != j.site {
+					continue
+				}
+
+				key := visitedLink(link)
+				if _, ok := visited[key]; ok {
+					continue
+				}
+
+				visited[key] = struct{}{}
+				queue = append(queue, job{url: link, depth: j.depth + 1, parent: node, site: j.site})
+
+			}
 		}
 	}
 
+	close(jobs)
+	wg.Wait()
+
 	return roots
+}
+
+func (c *Crawler) worker(ctx context.Context, jobs <-chan job, results chan<- result, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	for j := range jobs {
+
+		page, err := c.fetcher.Fetch(ctx, j.url)
+		results <- result{job: j, page: page, err: err}
+	}
+
 }
 
 func visitedLink(u *url.URL) string {
