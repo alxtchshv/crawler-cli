@@ -7,6 +7,7 @@ import (
 	"crawler/internal/fetch"
 	"crawler/internal/output"
 	"errors"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -19,6 +20,11 @@ func main() {
 
 	cfg, err := config.LoadConfig(os.Args[1:])
 	if err != nil {
+
+		if errors.Is(err, flag.ErrHelp) {
+			os.Exit(0)
+		}
+
 		fmt.Fprintf(os.Stderr, "оштбка закгрузки конфига: %v\n", err)
 		os.Exit(2)
 	}
@@ -81,5 +87,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Fprintf(os.Stderr, "результат: %s, лог: %s", cfg.OutputName, cfg.LogName)
+	fmt.Fprintf(os.Stderr, "результат: %s, лог: %s\n", cfg.OutputName, cfg.LogName)
 }
