@@ -40,7 +40,7 @@ type result struct {
 	err  error
 }
 
-func NewCrawler(f Fetcher, maxDepth int, logger *log.Logger) *Crawler {
+func NewCrawler(f Fetcher, maxDepth int, workers int, logger *log.Logger) *Crawler {
 
 	if logger == nil {
 		logger = log.New(io.Discard, "", 0)
@@ -50,7 +50,7 @@ func NewCrawler(f Fetcher, maxDepth int, logger *log.Logger) *Crawler {
 		fetcher:  f,
 		maxDepth: maxDepth,
 		logger:   logger,
-		workers:  10,
+		workers:  workers,
 	}
 
 }

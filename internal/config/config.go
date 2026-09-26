@@ -11,6 +11,7 @@ import (
 type Config struct {
 	Urls           []*url.URL
 	Depth          int
+	Workers        int
 	Timeout        time.Duration
 	RequestTimeout time.Duration
 	OutputName     string
@@ -20,6 +21,7 @@ type Config struct {
 type rawArgs struct {
 	Urls           string
 	Depth          int
+	Workers        int
 	Timeout        time.Duration
 	RequestTimeout time.Duration
 	OutputName     string
@@ -49,6 +51,7 @@ func parseArgs(args []string) (rawArgs, error) {
 	fs := flag.NewFlagSet("crawler", flag.ContinueOnError)
 	fs.StringVar(&rawConfig.Urls, "urls", "", "список урлов через запятую")
 	fs.IntVar(&rawConfig.Depth, "depth", 1, "глубина обхода")
+	fs.IntVar(&rawConfig.Workers, "workers", 10, "количество горутин")
 	fs.DurationVar(&rawConfig.Timeout, "timeout", 2*time.Minute, "время на работу кравлера")
 	fs.DurationVar(&rawConfig.RequestTimeout, "request-timeout", 5*time.Second, "максимальное время на 1 запрос")
 	fs.StringVar(&rawConfig.OutputName, "output", "output.json", "имя файла для результата")
@@ -101,6 +104,10 @@ func newConfig(raw rawArgs) (Config, error) {
 		return Config{}, fmt.Errorf("глубина обхода должна быть >= 0")
 	}
 
+	if raw.Workers < 1 {
+		return Config{}, fmt.Errorf("количество горутин должно быть >= 1")
+	}
+
 	if raw.Timeout <= 0 {
 		return Config{}, fmt.Errorf("время работы кравлера должно быть больше 0")
 	}
@@ -122,6 +129,7 @@ func newConfig(raw rawArgs) (Config, error) {
 	return Config{
 		Urls:           urls,
 		Depth:          raw.Depth,
+		Workers:        raw.Workers,
 		Timeout:        raw.Timeout,
 		RequestTimeout: raw.RequestTimeout,
 		OutputName:     raw.OutputName,

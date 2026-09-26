@@ -60,11 +60,11 @@ func main() {
 		}
 	}()
 
-	logger.Printf("начало обхода:\nurls=%v,\ndepth=%d,\ntimeout=%s,\nrequest-timeout=%s",
-		cfg.Urls, cfg.Depth, cfg.Timeout, cfg.RequestTimeout)
+	logger.Printf("начало обхода:\nurls=%v,\ndepth=%d,\n, workers=%d,\ntimeout=%s,\nrequest-timeout=%s",
+		cfg.Urls, cfg.Depth, cfg.Workers, cfg.Timeout, cfg.RequestTimeout)
 
 	f := fetch.NewFetcher(cfg.RequestTimeout)
-	c := crawler.NewCrawler(f, cfg.Depth, logger)
+	c := crawler.NewCrawler(f, cfg.Depth, cfg.Workers, logger)
 
 	roots := c.Crawl(ctxWTimeout, cfg.Urls)
 	close(done)
