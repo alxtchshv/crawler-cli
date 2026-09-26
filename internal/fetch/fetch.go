@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"crawler/internal/parse"
+
+	"golang.org/x/net/html/charset"
 )
 
 const maxBodySize = 5 << 20
@@ -83,9 +85,14 @@ func (f *Fetcher) Fetch(ctx context.Context, u *url.URL) (parse.Page, error) {
 		return parse.Page{}, fmt.Errorf("%w: content length %d", ErrTooLarge, resp.ContentLength)
 	}
 
-	page, err := parse.ParseHTML(io.LimitReader(resp.Body, maxBodySize), u)
+	body, err := charset.NewReader(io.LimitReader(resp.Body, maxBodySize), contentType)
 	if err != nil {
-		return parse.Page{}, err
+		return parse.Page{}, fmt.Errorf("charset: %w", err)
+	}
+
+	page, err := parse.ParseHTML(body, u)
+	if err != nil {
+		return parse.Page{}, fmt.Errorf("parse: %w", err)
 	}
 
 	return page, nil
