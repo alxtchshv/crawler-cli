@@ -29,5 +29,9 @@ func WriteJSON(path string, v any) error {
 		return fmt.Errorf("close temp: %w", err)
 	}
 
-	return fmt.Errorf("rename temp: %w", os.Rename(tmp.Name(), path))
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		return fmt.Errorf("rename temp: %w", err)
+	}
+
+	return nil
 }
