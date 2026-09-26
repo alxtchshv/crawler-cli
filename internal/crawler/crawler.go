@@ -82,6 +82,7 @@ func (c *Crawler) Crawl(ctx context.Context, starts []*url.URL) []*Node {
 	}
 
 	pending := 0
+loop:
 	for len(queue) > 0 || pending > 0 {
 
 		var sendCh chan job
@@ -92,6 +93,9 @@ func (c *Crawler) Crawl(ctx context.Context, starts []*url.URL) []*Node {
 		}
 
 		select {
+
+		case <-ctx.Done():
+			break loop
 
 		case sendCh <- next:
 			queue = queue[1:]
@@ -142,6 +146,9 @@ func (c *Crawler) Crawl(ctx context.Context, starts []*url.URL) []*Node {
 	}
 
 	close(jobs)
+	for ; pending > 0; pending-- {
+		<-results
+	}
 	wg.Wait()
 
 	return roots
