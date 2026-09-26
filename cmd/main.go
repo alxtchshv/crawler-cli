@@ -5,12 +5,13 @@ import (
 	"crawler/internal/config"
 	"crawler/internal/crawler"
 	"crawler/internal/fetch"
-	"encoding/json"
+	"crawler/internal/output"
 	"errors"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 )
 
@@ -19,7 +20,20 @@ func main() {
 	cfg, err := config.LoadConfig(os.Args[1:])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "оштбка закгрузки конфига: %v\n", err)
-		return
+		os.Exit(2)
+	}
+
+	logFile, err := os.Create(cfg.LogName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ошибка создания файла логов: %v\n", err)
+		os.Exit(1)
+	}
+	defer logFile.Close()
+	logger := log.New(logFile, "", log.LstdFlags|log.Lmicroseconds)
+
+	if _, err := os.Stat(filepath.Dir(cfg.OutputName)); err != nil {
+		fmt.Fprintf(os.Stderr, "ошибка доступа к директории вывода: %v\n", err)
+		os.Exit(1)
 	}
 
 	sigNotifyCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -40,7 +54,9 @@ func main() {
 		}
 	}()
 
-	logger := log.New(os.Stderr, "", log.LstdFlags)
+	logger.Printf("начало обхода:\nurls=%v,\ndepth=%d,\ntimeout=%s,\nrequest-timeout=%s",
+		cfg.Urls, cfg.Depth, cfg.Timeout, cfg.RequestTimeout)
+
 	f := fetch.NewFetcher(cfg.RequestTimeout)
 	c := crawler.NewCrawler(f, cfg.Depth, logger)
 
@@ -50,15 +66,20 @@ func main() {
 	switch {
 	case errors.Is(ctxWTimeout.Err(), context.DeadlineExceeded):
 		fmt.Fprintln(os.Stderr, "истек общий таймаут")
+		logger.Println("истек общий таймаут")
 	case errors.Is(ctxWTimeout.Err(), context.Canceled):
 		fmt.Fprintln(os.Stderr, "работа прервана")
+		logger.Println("работа прервана")
+	default:
+		fmt.Fprintln(os.Stderr, "обход завершен успешно")
+		logger.Println("обход завершен успешно")
 	}
 
-	data, err := json.MarshalIndent(roots, "", "  ")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "json:", err)
-		return
+	if err := output.WriteJSON(cfg.OutputName, roots); err != nil {
+		fmt.Fprintf(os.Stderr, "ошибка записи в файл: %v\n", err)
+		logger.Printf("ошибка записи в файл: %v", err)
+		os.Exit(1)
 	}
 
-	fmt.Println(string(data))
+	fmt.Fprintf(os.Stderr, "результат: %s, лог: %s", cfg.OutputName, cfg.LogName)
 }

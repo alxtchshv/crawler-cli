@@ -107,9 +107,11 @@ loop:
 			j := r.job
 
 			if r.err != nil {
-				c.logger.Printf("fetch %s: %v", j.url, r.err)
+				c.logger.Printf("FAIL %s: %v", j.url, r.err)
 				continue
 			}
+
+			c.logger.Printf("OK %s: %v", j.url, r.err)
 
 			node := &Node{
 				Resource: j.url.String(),
