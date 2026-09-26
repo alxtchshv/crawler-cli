@@ -111,7 +111,7 @@ loop:
 				continue
 			}
 
-			c.logger.Printf("OK %s: %v", j.url, r.err)
+			c.logger.Printf("OK %s status = 200:", j.url)
 
 			node := &Node{
 				Resource: j.url.String(),
