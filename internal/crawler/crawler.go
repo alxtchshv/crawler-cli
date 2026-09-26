@@ -171,7 +171,12 @@ func visitedLink(u *url.URL) string {
 
 	tmpURL := *u
 	tmpURL.Fragment = ""
+	tmpURL.RawFragment = ""
 	tmpURL.Host = strings.ToLower(tmpURL.Host)
+
+	if tmpURL.Path == "" {
+		tmpURL.Path = "/"
+	}
 
 	return tmpURL.String()
 }
