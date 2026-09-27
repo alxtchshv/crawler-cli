@@ -104,8 +104,8 @@ func newConfig(raw rawArgs) (Config, error) {
 		return Config{}, fmt.Errorf("глубина обхода должна быть >= 0")
 	}
 
-	if raw.Workers < 1 {
-		return Config{}, fmt.Errorf("количество горутин должно быть >= 1")
+	if raw.Workers < 1 || raw.Workers > 10 {
+		return Config{}, fmt.Errorf("--workers должен быть от 1 до 10")
 	}
 
 	if raw.Timeout <= 0 {
