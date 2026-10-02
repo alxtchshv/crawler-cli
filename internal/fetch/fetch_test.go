@@ -1,6 +1,7 @@
 package fetch
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -58,9 +59,31 @@ func newTestServer(t *testing.T) *httptest.Server {
 		}
 	})
 
+	mux.HandleFunc("/exact", func(w http.ResponseWriter, r *http.Request) {
+		writeChunked(w, maxBodySize)
+	})
+
+	mux.HandleFunc("/huge", func(w http.ResponseWriter, r *http.Request) {
+		writeChunked(w, maxBodySize+1)
+	})
+
+	mux.HandleFunc("/huge-length", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Content-Length", fmt.Sprint(maxBodySize+1))
+		w.Write(bytes.Repeat([]byte("a"), maxBodySize+1))
+	})
+
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
+}
+
+func writeChunked(w http.ResponseWriter, size int) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	head := []byte("<title>Big</title>")
+	w.Write(head)
+	w.(http.Flusher).Flush()
+	w.Write(bytes.Repeat([]byte("a"), size-len(head)))
 }
 
 func mustURL(t *testing.T, s string) *url.URL {
@@ -89,6 +112,9 @@ func TestFetch(t *testing.T) {
 		{"not found", "/missing", ErrStatus, ""},
 		{"image", "/image", ErrNotHTML, ""},
 		{"no content type", "/notype", ErrNotHTML, ""},
+		{"body exactly at limit", "/exact", nil, "Big"},
+		{"chunked body over limit", "/huge", ErrTooLarge, ""},
+		{"content length over limit", "/huge-length", ErrTooLarge, ""},
 	}
 
 	for _, tc := range tests {

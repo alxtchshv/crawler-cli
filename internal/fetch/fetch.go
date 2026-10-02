@@ -1,6 +1,7 @@
 package fetch
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -85,7 +86,16 @@ func (f *Fetcher) Fetch(ctx context.Context, u *url.URL) (parse.Page, error) {
 		return parse.Page{}, fmt.Errorf("%w: content length %d", ErrTooLarge, resp.ContentLength)
 	}
 
-	body, err := charset.NewReader(io.LimitReader(resp.Body, maxBodySize), contentType)
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxBodySize+1))
+	if err != nil {
+		return parse.Page{}, fmt.Errorf("read body: %w", err)
+	}
+
+	if len(data) > maxBodySize {
+		return parse.Page{}, fmt.Errorf("%w: body exceeds %d bytes", ErrTooLarge, maxBodySize)
+	}
+
+	body, err := charset.NewReader(bytes.NewReader(data), contentType)
 	if err != nil {
 		return parse.Page{}, fmt.Errorf("charset: %w", err)
 	}
